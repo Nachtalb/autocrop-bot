@@ -1,0 +1,25 @@
+[package]
+name = "autocrop-bot"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Telegram bot that crops screenshots (photos, videos, files) down to their content."
+license = "MIT"
+repository = "https://github.com/Nachtalb/autocrop-bot"
+readme = "README.md"
+
+[dependencies]
+autocrop = "0.1.1"
+teloxide = { version = "0.17", default-features = false, features = ["macros", "rustls", "ctrlc_handler"] }
+tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "signal", "sync", "process", "fs"] }
+anyhow = "1.0"
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+opt-level = 3
