@@ -36,10 +36,8 @@ pub enum Command {
     Start,
 }
 
-const ABOUT: &str = "Send me a screenshot — as a photo, video, GIF or file — and I'll send back \
-just the content: no status bars, app chrome, letterbox bars or meme text. Videos are cropped to \
-the rectangle found in a probe frame. If nothing looks like a screenshot I'll say so. \
-Files up to 20 MB.";
+const ABOUT: &str = "Send me a screenshot as a photo, video, GIF or file. I send back just the \
+picture: no status bars, app chrome, black bars or meme text. Up to 20 MB.";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -82,12 +80,18 @@ async fn main() -> Result<()> {
 }
 
 async fn publish_bot_metadata(bot: &Bot) -> Result<()> {
-    use teloxide::payloads::{SetMyDescriptionSetters, SetMyShortDescriptionSetters};
+    use teloxide::payloads::{
+        SetMyDescriptionSetters, SetMyNameSetters, SetMyShortDescriptionSetters,
+    };
     bot.set_my_commands(Command::bot_commands()).await?;
     bot.set_my_short_description()
-        .short_description("Cuts screenshots down to the picture. Send a photo, video or file.")
+        .short_description("Cuts screenshots down to the picture.")
         .await?;
     bot.set_my_description().description(ABOUT).await?;
+    // Telegram rate-limits name changes hard; a failure here must not block startup.
+    if let Err(err) = bot.set_my_name().name("Autocrop").await {
+        tracing::warn!(?err, "set_my_name failed");
+    }
     Ok(())
 }
 
