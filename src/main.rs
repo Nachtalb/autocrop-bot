@@ -207,6 +207,17 @@ async fn reply(bot: &Bot, msg: &Message, text: &str) -> Result<()> {
 /// Download, detect, crop and send. `None` when the detector found nothing.
 async fn process(bot: &Bot, msg: &Message, inc: &Incoming) -> Result<Option<CropResult>> {
     let dir = tempdir_unique()?;
+    let result = process_in(bot, msg, inc, &dir).await;
+    let _ = tokio::fs::remove_dir_all(&dir).await;
+    result
+}
+
+async fn process_in(
+    bot: &Bot,
+    msg: &Message,
+    inc: &Incoming,
+    dir: &Path,
+) -> Result<Option<CropResult>> {
     let in_path = dir.join("in");
     let tg_file = bot
         .get_file(inc.file_id.clone())
@@ -236,9 +247,8 @@ async fn process(bot: &Bot, msg: &Message, inc: &Incoming) -> Result<Option<Crop
 
     let result = match kind {
         Kind::Image(fmt) => crop_still(bot, msg, inc, &in_path, fmt).await?,
-        Kind::Video => crop_clip(bot, msg, inc, &in_path, &dir).await?,
+        Kind::Video => crop_clip(bot, msg, inc, &in_path, dir).await?,
     };
-    let _ = tokio::fs::remove_dir_all(&dir).await;
     Ok(result)
 }
 
