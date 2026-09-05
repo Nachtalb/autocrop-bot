@@ -10,6 +10,7 @@ readme = "README.md"
 
 [dependencies]
 autocrop = "0.1.1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 teloxide = { version = "0.17", default-features = false, features = ["macros", "rustls", "ctrlc_handler"] }
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "signal", "sync", "process", "fs"] }
 anyhow = "1.0"

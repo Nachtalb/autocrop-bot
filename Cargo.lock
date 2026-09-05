@@ -86,6 +86,7 @@ dependencies = [
  "anyhow",
  "autocrop",
  "dotenvy",
+ "image",
  "teloxide",
  "tokio",
  "tracing",

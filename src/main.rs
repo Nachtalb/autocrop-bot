@@ -244,14 +244,17 @@ async fn crop_still(
     in_path: &Path,
     fmt: ImageFormat,
 ) -> Result<Option<CropResult>> {
-    let in_path = in_path.to_owned();
-    let (cropped, result) =
-        tokio::task::spawn_blocking(move || autocrop::crop_image(&in_path, &Params::default()))
-            .await?
-            .context("decode image")?;
-    if result.rect.is_none() {
+    let data = tokio::fs::read(in_path).await?;
+    let (cropped, result) = tokio::task::spawn_blocking(move || {
+        let img = decode(&data)?;
+        let result = find_crop(&img, &Params::default());
+        let cropped = result.rect.as_ref().map(|r| img.crop(r));
+        Ok::<_, anyhow::Error>((cropped, result))
+    })
+    .await??;
+    let Some(cropped) = cropped else {
         return Ok(None);
-    }
+    };
     let bytes = cropped.encode(fmt.encoding()).context("encode crop")?;
     let name = out_name(&inc.name, fmt.ext());
     let file = InputFile::memory(bytes).file_name(name);
@@ -338,7 +341,7 @@ async fn probe_clip(in_path: &Path, dir: &Path) -> Result<Option<CropResult>> {
         if !ffmpeg(&args).await? || !frame.exists() {
             continue; // seek past the end: no frame written
         }
-        let img = RgbImage::load(&frame).context("decode probe frame")?;
+        let img = decode(&tokio::fs::read(&frame).await?).context("decode probe frame")?;
         if is_black(&img) {
             tracing::info!(?seek, "probe frame is black");
             continue;
@@ -350,6 +353,21 @@ async fn probe_clip(in_path: &Path, dir: &Path) -> Result<Option<CropResult>> {
         tracing::info!(?seek, reason = %result.reason, "no crop in probe frame");
     }
     Ok(None)
+}
+
+/// Decode from bytes: the format is sniffed from the content, since the
+/// scratch file has no extension for `image::open` to go by.
+fn decode(data: &[u8]) -> Result<RgbImage> {
+    let decoded = image::load_from_memory(data)
+        .context("decode image")?
+        .to_rgb8();
+    let (w, h) = (decoded.width() as usize, decoded.height() as usize);
+    let pixels = decoded
+        .as_raw()
+        .chunks_exact(3)
+        .map(|c| [c[0], c[1], c[2]])
+        .collect();
+    Ok(RgbImage::new(w, h, pixels))
 }
 
 fn is_black(img: &RgbImage) -> bool {
@@ -526,5 +544,19 @@ mod ffmpeg_tests {
             "{rect:?}"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod decode_tests {
+    use super::*;
+
+    #[test]
+    fn decode_without_extension_and_crop() {
+        let data = std::fs::read("tests/screenshot.jpg").unwrap();
+        let img = decode(&data).unwrap();
+        assert_eq!((img.width, img.height), (600, 1286));
+        let result = find_crop(&img, &Params::default());
+        assert!(result.rect.is_some(), "{}", result.reason);
     }
 }
