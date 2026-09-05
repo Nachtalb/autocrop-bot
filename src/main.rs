@@ -216,6 +216,7 @@ async fn process(bot: &Bot, msg: &Message, inc: &Incoming) -> Result<Option<Crop
     bot.download_file(&tg_file.path, &mut dst)
         .await
         .context("download_file")?;
+    tokio::io::AsyncWriteExt::flush(&mut dst).await?;
     drop(dst);
 
     // Trust nothing about the declared type: sniff the bytes.
@@ -226,7 +227,11 @@ async fn process(bot: &Bot, msg: &Message, inc: &Incoming) -> Result<Option<Crop
         buf[..n].to_vec()
     };
     let Some(kind) = sniff(&head) else {
-        bail!("unsupported file type");
+        bail!(
+            "unsupported file type ({} bytes, head {:02x?})",
+            std::fs::metadata(&in_path)?.len(),
+            head
+        );
     };
 
     let result = match kind {
